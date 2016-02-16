@@ -1,0 +1,584 @@
+// CIS 1C Assignment #6
+// Part A
+
+import cs_1c.*;
+import java.util.*;
+
+class EBookCompInt implements Comparable<Integer> {
+   EBookEntry data;
+   public EBookCompInt (EBookEntry e) { 
+     data = e; 
+   }
+   
+   public String toString() { 
+     return data.toString(); 
+   }
+
+   public int compareTo(Integer key) {
+      return data.getETextNum() - key;
+   }
+
+   public boolean equals( EBookCompInt rhs ) {
+      return data.equals(rhs.data);
+   }
+    
+   public int hashCode() {
+      return data.getETextNum();
+   } 
+}
+
+class EBookCompString implements Comparable<String> {
+   EBookEntry data;
+   public EBookCompString (EBookEntry e) { 
+     data = e; 
+   }
+
+   public String toString() { 
+     return data.toString(); 
+   }
+
+   public int compareTo(String key) {
+     return data.getCreator().compareTo(key);
+   }
+
+   public boolean equals ( EBookCompString rhs ) {
+      return data.equals(rhs.data);
+   }
+    
+   public int hashCode() {
+      return data.getCreator().hashCode();
+   } 
+}
+
+//------------------------------------------------------
+public class Foothill {
+
+   public static final int NUM_RANDOM_INDICES = 25;
+   
+   // -------  main --------------
+   public static void main(String[] args) throws Exception {
+      int k;
+      EBookEntryReader book_input = new EBookEntryReader("catalog-short4.txt");
+      FHhashQPwFind<String, EBookCompString> hashTableString
+         = new FHhashQPwFind<String, EBookCompString>();
+      FHhashQPwFind< Integer, EBookCompInt> hashTableInt
+         = new FHhashQPwFind<Integer, EBookCompInt>();
+      EBookCompString bookResult1;
+      EBookCompInt bookResult2;
+      String searchKey1[] = new String[NUM_RANDOM_INDICES];
+      int searchKey2[] = new int[NUM_RANDOM_INDICES];
+      EBookEntry tmp = null;
+      
+      // test the success of the read
+      if (book_input.readError()) {
+         System.out.println("couldn't open " + book_input.getFileName()
+            + " for input.");
+         return;
+      }
+
+      // populate both hash tables
+      for(k = 0; k < NUM_RANDOM_INDICES; k++) {
+         tmp = book_input.getBook(
+            randomIndices(0, book_input.getNumBooks()));
+         searchKey1[k] = tmp.getCreator();
+         hashTableString.insert(new EBookCompString(tmp));
+         
+         tmp = book_input.getBook(
+            randomIndices(0, book_input.getNumBooks()));
+         searchKey2[k] = tmp.getETextNum();
+         hashTableInt.insert(new EBookCompInt(tmp));
+      }
+      
+      // displace string hash table
+      System.out.println("Displace the hash table with string key:\n");
+      hashTableString.display();
+      
+      // attempt to find on the selected string key
+      System.out.println( "Attempt to find on the selected string key:\n" );
+      for (k = 0; k < NUM_RANDOM_INDICES; k++) {
+         try {
+            bookResult1 = hashTableString.Find(searchKey1[k]);
+            System.out.println(String.format("Found item with key %s", searchKey1[k]));
+         }
+         catch (NoSuchElementException e) {
+            System.out.println(String.format("Fail to find book by key %s",searchKey1[k]));
+         }
+      }
+      
+      // displace string hash table
+      System.out.println("Displace the hash table with integer key:\n");
+      hashTableInt.display();
+      
+      // attempt to find on the selected integer key
+      System.out.println( "Attempt to find on the selected integer key:\n" );
+      for (k = 0; k < NUM_RANDOM_INDICES; k++) {
+         try {
+            bookResult2 = hashTableInt.Find(searchKey2[k]);
+            System.out.println(String.format("Found item with key %d", searchKey2[k]));
+         }
+         catch (NoSuchElementException e) {
+            System.out.println(String.format("Fail to find book by key %d",searchKey2[k]));
+         }
+      }
+      
+      // test known successes failures exceptions:
+      try {
+          bookResult2 = hashTableInt.Find(-3);
+      }
+      catch (NoSuchElementException e) {
+         System.out.println(String.format("Fail to find book by key %d",-3));
+      }
+      
+      // more failures
+      try {
+         bookResult1 = hashTableString.Find( "Jack Kerouac" );
+      }
+      catch (NoSuchElementException e) {
+          System.out.println(String.format("Fail to find book by key %s",
+             "Jack Kerouac"));
+      }
+   }
+   
+   static int randomIndices(int min, int max) {
+      Random rn = new Random();
+      int range = max - min + 1;
+      int randomNum =  rn.nextInt(range) + min;
+      return randomNum;
+   }
+}
+
+//------------ Class FHhashQPwFind Definition ---------------
+import cs_1c.*;
+import java.util.*;
+
+public class FHhashQPwFind<KeyType, E extends Comparable<KeyType>>
+   extends FHhashQP<E> {
+
+   /**
+    * Method to find data by key
+    * @param key      target key
+    * @return         the object
+    */
+   public E Find(KeyType key) {
+      // find the location
+      int pos = findPosKey(key);
+      
+      // check if the object is deleted
+      if (mArray[pos].state != ACTIVE)
+         throw new NoSuchElementException();
+      
+      return mArray[pos].data;
+   }
+   
+   /**
+    * Use the key to hash
+    * @param key      the key that will be hashed
+    * @return         hash result
+    */
+   protected int myHashKey(KeyType key) {
+      int hashVal;
+
+      hashVal = key.hashCode() % mTableSize;
+      if(hashVal < 0)
+         hashVal += mTableSize;
+
+      return hashVal;
+   }
+   
+   /**
+    * Use the key to find the position of object that match the key
+    * @param key      target key
+    * @return         object position
+    */
+   protected int findPosKey(KeyType key){
+      int kthOddNum = 1;
+      int index = myHashKey(key);
+
+      while ( mArray[index].state != EMPTY
+         && mArray[index].data.compareTo(key) != 0)
+      {
+         index += kthOddNum; // k squared = (k-1) squared + kth odd #
+         kthOddNum += 2;     // compute next odd #
+         if ( index >= mTableSize )
+            index -= mTableSize;
+      }
+      return index;
+   }
+
+   /**
+    * Method to print out all object
+    */
+   public void display() {
+      for (int i = 0; i < mArray.length; i++) {
+         if (mArray[i].data != null) {
+            System.out.println("Array[ " + i + " ] " + mArray[i].data);
+         }
+      }
+   }
+}
+
+
+/********************* RUN **************************
+
+Displace the hash table with string key:
+
+Array[ 1 ]    # 30090  ---------------
+   "Robinetta"
+   by Findlater, Mary, 1865-1963
+   re: Fiction
+
+
+Array[ 6 ]    # 25008  ---------------
+   "An Essay on the Lyric Poetry of the Ancients"
+   by Ogilvie, John, 1732-1813
+   re: Classical poetry -- History and criticism
+
+
+Array[ 12 ]    # 19271  ---------------
+   "Dawn of a New Day"
+   by Shoghi Effendi, 1897-1957
+   re: (no data found)
+
+
+Array[ 13 ]    # 25143  ---------------
+   "The Curlytops and Their Playmatesor Jolly Times Through the Holidays"
+   by Garis, Howard Roger, 1873-1962
+   re: Brothers and sisters -- Juvenile fiction
+
+
+Array[ 14 ]    # 23893  ---------------
+   "The Melting-Pot"
+   by Zangwill, Israel, 1864-1926
+   re: (no data found)
+
+
+Array[ 16 ]    # 29008  ---------------
+   "The Elm Tree Tales"
+   by Smith, F. Irene Burge (Frances Irene Burge), 1826-1900
+   re: PS
+
+
+Array[ 17 ]    # 14573  ---------------
+   "The Truce of God"
+   by Rinehart, Mary Roberts, 1876-1958
+   re: Christmas stories
+
+
+Array[ 26 ]    # 26671  ---------------
+   "The Boy CrusadersA Story of the Days of Louis IX."
+   by Edgar, John G. (John George), 1834-1864
+   re: Biographical fiction
+
+
+Array[ 44 ]    # 26020  ---------------
+   "Apis Mellificaor, The Poison of the Honey-Bee, Considered as a Therapeutic Agent"
+   by Wolf, C. W., -1866
+   re: Homeopathy
+
+
+Array[ 47 ]    # 27151  ---------------
+   "Memoirs and Correspondence of Admiral Lord de Saumarez. Vol II"
+   by Ross, John, Sir, 1777-1856
+   re: Saumarez, James, 1757-1836
+
+
+Array[ 58 ]    # 28288  ---------------
+   "Vanished towers and chimes of Flanders"
+   by Edwards, George Wharton, 1859-1950
+   re: Church buildings -- Flanders
+
+
+Array[ 62 ]    # 15909  ---------------
+   "The American Missionary — Volume 44, No. 01, January, 1890"
+   by Various
+   re: Congregational churches -- Missions -- Periodicals
+
+
+Array[ 63 ]    # 27864  ---------------
+   "Ainslee's, Vol. 15, No. 5, June 1905"
+   by Various
+   re: Short stories -- Periodicals
+
+
+Array[ 66 ]    # 27693  ---------------
+   "Little Folks (October 1884)A Magazine for the Young"
+   by Various
+   re: Children's periodicals, English
+
+
+Array[ 70 ]    # 27027  ---------------
+   "A Chronicle of London from 1089 to 1483Written in the Fifteenth Century, and for the First TimePrinted from MSS. in the British Museum"
+   by Anonymous
+   re: London (England) -- History -- To 1500
+
+
+Array[ 79 ]    # 27709  ---------------
+   "Five O'Clock TeaFarce"
+   by Howells, William Dean, 1837-1920
+   re: PS
+
+
+Array[ 80 ]    # 29570  ---------------
+   "Rope"
+   by Hall, Holworthy, 1887-1936
+   re: PS
+
+
+Array[ 81 ]    # 26852  ---------------
+   "The Blue Germ"
+   by Nicoll, Maurice, 1884-1953
+   re: Science fiction
+
+
+Array[ 82 ]    # 29566  ---------------
+   "The Centurion's Story"
+   by Burrell, David James, 1844-1926
+   re: Christian fiction
+
+
+Array[ 83 ]    # 26296  ---------------
+   "Arabian nights. French"
+   by (no data found)
+   re: Fairy tales
+
+
+Array[ 84 ]    # 30024  ---------------
+   "The Fisher-Boy Urashima"
+   by (no data found)
+   re: Fairy tales
+
+
+Array[ 87 ]    # 27351  ---------------
+   "Jeremiah : Being The Baird Lecture for 1922"
+   by Smith, George Adam, Sir, 1856-1942
+   re: Jeremiah (Biblical prophet)
+
+
+Array[ 88 ]    # 30251  ---------------
+   "Disqualified"
+   by Fontenay, Charles Louis, 1917-2007
+   re: Science fiction
+
+
+Array[ 95 ]    # 21495  ---------------
+   "To The West"
+   by Fenn, George Manville, 1831-1909
+   re: (no data found)
+
+
+Array[ 96 ]    # 29256  ---------------
+   "High Finance"
+   by Kahn, Otto Hermann, 1867-1934
+   re: Capital
+
+
+Attempt to find on the selected string key:
+
+Found item with key Various
+Found item with key Kahn, Otto Hermann, 1867-1934
+Found item with key Howells, William Dean, 1837-1920
+Found item with key Ogilvie, John, 1732-1813
+Found item with key Shoghi Effendi, 1897-1957
+Found item with key Smith, F. Irene Burge (Frances Irene Burge), 1826-1900
+Found item with key Fenn, George Manville, 1831-1909
+Found item with key Rinehart, Mary Roberts, 1876-1958
+Found item with key Edgar, John G. (John George), 1834-1864
+Found item with key (no data found)
+Found item with key Anonymous
+Found item with key Smith, George Adam, Sir, 1856-1942
+Found item with key (no data found)
+Found item with key Wolf, C. W., -1866
+Found item with key Garis, Howard Roger, 1873-1962
+Found item with key Zangwill, Israel, 1864-1926
+Found item with key Edwards, George Wharton, 1859-1950
+Found item with key Hall, Holworthy, 1887-1936
+Found item with key Ross, John, Sir, 1777-1856
+Found item with key Findlater, Mary, 1865-1963
+Found item with key Various
+Found item with key Nicoll, Maurice, 1884-1953
+Found item with key Burrell, David James, 1844-1926
+Found item with key Fontenay, Charles Louis, 1917-2007
+Found item with key Various
+Displace the hash table with integer key:
+
+Array[ 0 ]    # 28906  ---------------
+   "The Tale of Timber Town"
+   by Grace, Alfred A. (Alfred Augustus), 1867-1942
+   re: PR
+
+
+Array[ 1 ]    # 17461  ---------------
+   "The Great German Composers"
+   by Ferris, George T. (George Titus), 1840-
+   re: (no data found)
+
+
+Array[ 2 ]    # 4851  ---------------
+   "History of the United Netherlands, 1587a"
+   by Motley, John Lothrop, 1814-1877
+   re: Netherlands -- History -- Wars of Independence, 1556-1648
+
+
+Array[ 3 ]    # 5920  ---------------
+   "The History of Don Quixote, Volume 1, Part 18"
+   by Cervantes Saavedra, Miguel de, 1547-1616
+   re: Spain -- Social life and customs -- 16th century -- Fiction
+
+
+Array[ 4 ]    # 25802  ---------------
+   "Ruth Fielding on the St. LawrenceThe Queer Old Man of the Thousand Islands"
+   by Emerson, Alice B.
+   re: Orphans -- Juvenile fiction
+
+
+Array[ 8 ]    # 14849  ---------------
+   "Leaves of LifeFor Daily Inspiration"
+   by Steinmetz, Margaret Bird
+   re: (no data found)
+
+
+Array[ 11 ]    # 28820  ---------------
+   "Counsel for the Defense"
+   by Scott, Leroy, 1875-1929
+   re: PS
+
+
+Array[ 13 ]    # 3311  ---------------
+   "The Californiacs"
+   by Gillmore, Inez Haynes, 1873-1970
+   re: California -- Description and travel
+
+
+Array[ 16 ]    # 25042  ---------------
+   "Color Value"
+   by Clifford, C. R. (Chandler Robbins), 1858-1935
+   re: Interior decoration
+
+
+Array[ 17 ]    # 26691  ---------------
+   "Sanctification"
+   by Byers, J. W.
+   re: Sanctification
+
+
+Array[ 22 ]    # 27182  ---------------
+   "More Peers : Verses"
+   by Belloc, Hilaire, 1870-1953
+   re: Nonsense verses
+
+
+Array[ 34 ]    # 26612  ---------------
+   "A Pirate of Parts"
+   by Neville, Richard
+   re: Theater -- Fiction
+
+
+Array[ 36 ]    # 25838  ---------------
+   "Fair MargaretA Portrait"
+   by Crawford, F. Marion (Francis Marion), 1854-1909
+   re: PS
+
+
+Array[ 47 ]    # 11105  ---------------
+   "Jack Mason, the Old Sailor"
+   by Woodworth, Francis C. (Francis Channing), 1812-1859
+   re: (no data found)
+
+
+Array[ 48 ]    # 24783  ---------------
+   "The Pirate's Pocket Book"
+   by Calthrop, Dion Clayton, 1878-1937
+   re: Wit and humor
+
+
+Array[ 49 ]    # 19352  ---------------
+   "Herbal Simples Approved for Modern Uses of Cure"
+   by Fernie, William Thomas, 1830-
+   re: Botany, Medical
+
+
+Array[ 56 ]    # 347  ---------------
+   "Grettir the Strong, Icelandic Saga"
+   by Unknown
+   re: Vikings -- Fiction
+
+
+Array[ 66 ]    # 11512  ---------------
+   "O. Henry Memorial Award Prize Stories of 1921"
+   by Various
+   re: (no data found)
+
+
+Array[ 67 ]    # 29263  ---------------
+   "The Autobiography of Sergeant William LawrenceA Hero of the Peninsular and Waterloo Campaigns"
+   by Lawrence, William, 1791-1867
+   re: Great Britain. Army -- Military life
+
+
+Array[ 68 ]    # 26064  ---------------
+   "Problems of ExpansionAs Considered In Papers and Addresses"
+   by Reid, Whitelaw, 1837-1912
+   re: United States -- Colonial question
+
+
+Array[ 69 ]    # 13940  ---------------
+   "The Problem of China"
+   by Russell, Bertrand, 1872-1970
+   re: (no data found)
+
+
+Array[ 71 ]    # 28876  ---------------
+   "History Of Egypt, Chaldæa, Syria, Babylonia, And AssyriaA Linked Index to the Project Gutenberg Editions"
+   by Maspero, G. (Gaston), 1846-1916
+   re: History, Ancient
+
+
+Array[ 90 ]    # 28705  ---------------
+   "The God in the Box"
+   by Wright, Sewell Peaslee, 1897-1970
+   re: Science fiction
+
+
+Array[ 92 ]    # 20947  ---------------
+   "Memoirs of the Jacobites of 1715 and 1745Volume II."
+   by Thomson, Mrs.
+   re: (no data found)
+
+
+Array[ 96 ]    # 26189  ---------------
+   "A Spoil of OfficeA Story of the Modern West"
+   by Garland, Hamlin, 1860-1940
+   re: Farmers -- Fiction
+
+
+Attempt to find on the selected integer key:
+
+Found item with key 11105
+Found item with key 20947
+Found item with key 3311
+Found item with key 28906
+Found item with key 28820
+Found item with key 24783
+Found item with key 25838
+Found item with key 17461
+Found item with key 25042
+Found item with key 28705
+Found item with key 5920
+Found item with key 13940
+Found item with key 25802
+Found item with key 19352
+Found item with key 27182
+Found item with key 11512
+Found item with key 347
+Found item with key 26189
+Found item with key 26064
+Found item with key 26612
+Found item with key 14849
+Found item with key 29263
+Found item with key 26691
+Found item with key 28876
+Found item with key 4851
+Fail to find book by key -3
+Fail to find book by key Jack Kerouac
+
+****************************************************/
